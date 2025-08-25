@@ -1,11 +1,16 @@
 from selenium.webdriver.support import expected_conditions as EC
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+import screen_brightness_control as sbc
+from ctypes import cast, POINTER
+from comtypes import CLSCTX_ALL
 import speech_recognition as sr
 from selenium import webdriver
-from datetime import datetime
+from datetime import datetime 
 from bs4 import BeautifulSoup
 from word2number import w2n
 import customtkinter as ctk
@@ -13,35 +18,24 @@ from random import randint
 import sounddevice as sd
 from time import sleep
 from PIL import Image 
+from gtts import gTTS
+import subprocess
 import webbrowser
 import threading
+import playsound
 import pyautogui
 import requests
-import pyttsx3
-import sqlite3
 import random
 import queue
 import vosk
 import time
 import os
-
 class Order:
-
-    """ serch only --> serch text in google chrome
-        serch --> serch text and visit to top link 
-        link --> open link (it's showld fix link)
-        type --> write taxt with keyboard button
-        press --> press some button in one time
-        click --> click on pc with x(1,1900) and y(1,1000)
-        scroll --> scroll x secend
-        screenshot --> screenshot in real_time and save in screenshot folder
-    """
     
     def __init__(self):
-        self.__all__ = ["choice","serch_only","serch","link","type","press_key","click","scroll","screenshot"]
+        self.__all__ = ["choice","serch_only","serch","link","type","press_key","click","scroll","screenshot","open","close","time","date",
+                        "sleep","shutdown","restart","volume_up","volume_down","set_brightness","mute","play","pause"]
         self.directory_name = os.path.dirname(os.path.realpath(__file__))
-        self.engin = pyttsx3.init()
-        self.engin.setProperty('rate', 130)
 
     def tt(self,x):
         try:
@@ -59,7 +53,7 @@ class Order:
             return "".join(y)
         except:
             pass
-    
+        
     def aa(self,x):
         try:
             y = list(x)
@@ -185,32 +179,25 @@ class Order:
     def serch(self,x):
         try:
             search_text=self.fix(x)
-            driver = webdriver.Chrome(ChromeDriverManager().install())
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service)
             driver.get("https://www.google.com")
-            wait = WebDriverWait(driver, 10)
-            search_box = wait.until(EC.presence_of_element_located((By.NAME, "q")))
+
+            search_box = driver.find_element(By.NAME, "q")
             search_box.send_keys(search_text + Keys.RETURN)
+
             while True:
-                try:
-                    body_element = driver.find_element(By.TAG_NAME, 'body')
-                    if 'srp' in body_element.get_attribute('class'):
-                        break
-                except:
-                    time.sleep(0.1)
-            html = driver.page_source
-            soup = BeautifulSoup(html, 'html.parser')
-            first_result_div = soup.find("div", class_="yuRUbf")
-            if first_result_div:
-                first_link = first_result_div.find("a")
-                if first_link and first_link.has_attr("href"):
-                    first_link_url = first_link["href"]
-                    driver.get(first_link_url)
+                html = driver.page_source
+                soup = BeautifulSoup(html, "html.parser")
+                first_link = soup.select_one("div.yuRUbf a")
+                if first_link:
+                    driver.get(first_link["href"])
+                    break
                 else:
-                    pass
-            else:
-                pass
-            
+                    time.sleep(0.2)
+
             time.sleep(5)
+            driver.quit()
         except:
             pass
 
@@ -231,7 +218,7 @@ class Order:
                 pyautogui.write(i)
                 time.sleep(0.07)
         except:
-            pass
+            pass 
 
     def press_key2(self,keys):
         try:
@@ -355,25 +342,105 @@ class Order:
             screen.save(f"C:\\Users\\{username}\\OneDrive\\Pictures\\Screenshots\\Screenshot {date} {num}.png")
         except:
             pass
+    
+    def Open(self,SS:str):
+        SS=SS.capitalize()
+        try:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            files = [f for f in os.listdir(desktop) if f.lower().endswith(".lnk")]
+            choice=0
+            for i,f in enumerate(files, 1):
+                if(SS in f):
+                    choice=i-1
+                    break
+            if 0 <= choice < len(files):
+                path = os.path.join(desktop, files[choice])
+                subprocess.Popen(['explorer', path])
+        except:
+            pass
 
-    def choice(self,text:str):
+    def Close(SS: str):
+        SS = SS.lower()
+        result = subprocess.run(['tasklist'], capture_output=True, text=True)
+        processes = result.stdout.splitlines()
+        found = False
+        for line in processes:
+            parts = line.split()
+            if not parts:
+                continue
+            proc = parts[0].lower()
+            if SS in proc:
+                found = True
+                subprocess.run(['taskkill', '/f', '/im', proc], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def volume_up(self,step=10):
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        current = volume.GetMasterVolumeLevelScalar()
+        new = min(1.0, current + step/100)
+        volume.SetMasterVolumeLevelScalar(new, None)
+
+    def volume_down(self,step=10):
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        current = volume.GetMasterVolumeLevelScalar()
+        new = max(0.0, current - step/100)
+        volume.SetMasterVolumeLevelScalar(new, None)
+
+    def mute(self):
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        volume.SetMute(1, None)
+
+    def shutdown(self):
+        os.system("shutdown /s /t 1") 
+
+    def restart(self):
+        os.system("shutdown /r /t 1")
+
+    def sleep(self):
+        os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0") 
+
+    def set_brightness(self,c: int):
+        sbc.set_brightness(c)
+
+    def puse_play(self):
+        pyautogui.press("space")   
+
+    def speak(self,text):
+        tts = gTTS(text=text, lang='en')
+        filename = "voice.mp3"
+        tts.save(filename)
+        playsound.playsound(filename)
+        os.remove(filename)
+
+    def tell_time(self):
+        now = datetime.now().strftime("%H:%M")
+        self.speak(f"The time is {now}")
+
+    def tell_date(self):
+        today = datetime.now().strftime("%A, %B %d, %Y")
+        self.speak(f"Today is {today}")   
+
+    def choice(self,text:str):   
         x = self.check_conection()
         if not x:
             try:
                 if text.startswith("search") or text.startswith("serch") :
-                    self.engin.say("You are not connected to the Internet")
-                    self.engin.runAndWait()
+                    print("You are not connected to the Internet")
                 if text.startswith("link") or text.startswith("lynch"):
-                    self.engin.say("You are not connected to the Internet")
-                    self.engin.runAndWait()
+                    print("You are not connected to the Internet")
                 if self.tt(text).startswith("type") or self.tt(text).startswith("right") or self.tt(text).startswith("hi"):
                     self.type(self.tt(text))
                 if self.tt(text).startswith("police") or self.tt(text).startswith("price") or self.tt(text).startswith("press"):
                     self.press_key(self.tt(text))
                 if self.tt(text).startswith("click")or self.tt(text).startswith("quick") or self.tt(text).startswith("greet") or self.tt(text).startswith("great") or self.tt(text).startswith("creek") or self.tt(text).startswith("blake") or self.tt(text).startswith("week") or self.tt(text).startswith("clique"):
                     self.click(self.tt(text))
-                if self.tt(text).startswith("school") or self.tt(text).startswith("screw") or self.tt(text).startswith("scroll") or self.tt(text).startswith("is cool"):
-                    if  self.tt(text).startswith("is cool") :
+                if self.tt(text).startswith("school") or self.tt(text).startswith("screw") or self.tt(text).startswith("scroll") or self.tt(text).startswith("is cool") or self.tt(text).startswith("is coral") or self.tt(text).startswith("escrow") or self.tt(text).startswith("is cruel") :
+                    if  self.tt(text).startswith("is cool") or self.tt(text).startswith("is coral") :
                         self.scroll2(self.tt(text))
                     else:
                         self.scroll(self.tt(text))
@@ -381,40 +448,70 @@ class Order:
                     self.screenshot()
                 else:
                     pass
-            except:
+            except:   
                 pass
         if x:
             try:
+                #hello type hello type hello 
                 text = self.aa(text.lower())
-                if text.startswith("search") or text.startswith("serch") :
+                print(text)
+                if text.startswith("date"):
+                    self.tell_date()
+                if text.startswith("time"):
+                    self.tell_time()    
+                if text.startswith("open"):
+                    self.Open(text)
+                elif text.startswith("sleep"):
+                    self.sleep()
+                elif text.startswith("shut"):
+                    self.shutdown()
+                elif text.startswith("restart") or text.startswith("re start"):
+                    self.restart()
+                elif text.startswith("close"):
+                    self.Close(text)
+                elif "up" in text and "volume" in text:
+                    self.volume_up()
+                elif "down" in text and "volume" in text:
+                    self.volume_down()
+                elif "mute" in text:
+                    self.mute()       
+                elif "brightness" in text:
+                    try:
+                        self.set_brightness(int(text.split()[-1]))
+                    except:
+                        pass      
+                elif "play" in text or "pause" in text:
+                    try:
+                        self.puse_play()
+                    except:
+                        pass
+                elif text.startswith("search") or text.startswith("serch") :
                     if self.fix(text).startswith("only") or self.fix(text).startswith("just"):
                         self.serch_only(text)
-                        
                     else:
-                        threading.Thread (target=self.serch(text)).start() 
-                if text.startswith("link") or text.startswith("lynch"):
+                        threading.Thread (target=self.serch(text)).start()
+                elif text.startswith("link") or text.startswith("lynch"):
                     self.link(text)
-                if text.startswith("type") or text.startswith("right") or text.startswith("hi"):
+                elif text.startswith("type") or text.startswith("right") or text.startswith("hi"):
                     self.type(text)
-                if text.startswith("police") or text.startswith("price") or text.startswith("press"):
+                elif text.startswith("police") or text.startswith("price") or text.startswith("press"):
                         self.press_key(text)
-                if text.startswith("click") or text.startswith("quick") or text.startswith("greet") or text.startswith("blake") or text.startswith("kill it") or text.startswith("week") or text.startswith("create"):
+                elif text.startswith("click") or text.startswith("quick") or text.startswith("greet") or text.startswith("blake") or text.startswith("kill it") or text.startswith("week") or text.startswith("create") or text.startswith("delete") or text.startswith("chilli"):
                     if text.startswith("kill it"):
                         self.click2(text)
                     else:
                         self.click(text)
-                if text.startswith("school") or text.startswith("screw") or text.startswith("scroll") or text.startswith("is cool"):
+                elif text.startswith("school") or text.startswith("screw") or text.startswith("scroll") or text.startswith("is cool"):
                     if  text.startswith("is cool") :
                         self.scroll2(text)
                     else:
                         self.scroll(text)
-                if text.startswith("screenshot") or text.startswith("screen") or text.startswith("screen shot"):
+                elif text.startswith("screenshot") or text.startswith("screen") or text.startswith("screen shot"):
                     self.screenshot()
                 else:
                     pass
             except:
                 pass
-        
 
 class App():
     def __init__(self):
@@ -432,20 +529,18 @@ class App():
         self.switch_var = ctk.StringVar(value="off")
         self.rectangle = ctk.CTkLabel(self.app, width=2000, height=1100, text="", fg_color="#000f51")
         self.bt1 = ctk.CTkButton(self.app,width=200,height=80,text="Menu",anchor="n",compound="left",image=ctk.CTkImage(dark_image=self.image2),border_color="#000044",command=lambda p=1: self.change_page(p))
-        self.btn3 = ctk.CTkButton(self.app,width=200,height=80,text="login/singin",anchor="n",compound="left",image=ctk.CTkImage(dark_image = self.image4),border_color="#000044",command=lambda p=3: self.change_page(p))
+        self.btn3 = ctk.CTkButton(self.app,width=200,height=80,text="login/register",anchor="n",compound="left",image=ctk.CTkImage(dark_image = self.image4),border_color="#000044",command=lambda p=3: self.change_page(p))
         self.btn4 = ctk.CTkButton(self.app,width=200,height=80,text="Settings",anchor="n",compound="left",image=ctk.CTkImage(dark_image=self.image1),border_color="#000044",command=lambda p=4: self.change_page(p))
-        self.model = vosk.Model(f"{self.directory_name}\\model")
+        self.model = vosk.Model(f"{self.directory_name}\\model_en")
         self.bt1.place(x=0,y=280-140+10)
         self.btn3.place(x=0,y=360-140+10)
         self.btn4.place(x=0,y=440-140+10)
-        self.engine = pyttsx3.init()
-        self.engine.setProperty('rate', 130)
         self.app.title("speech to order")
         ctk.set_appearance_mode("Dark")
         self.gpt_text = self.random_t()
         self.qw = 0
         self.r = 1
-        self.s = 1 
+        self.s = 1
 
     def random_t(self):
         n=randint(1,20)
@@ -472,12 +567,10 @@ class App():
             self.order.choice(x)
         else:
             self.order.choice(f'"{x}"')
-
+    
     def stt_of(self):
         self.qw+=1
         with sd.RawInputStream(samplerate=16000, blocksize=8000, dtype='int16',channels=1, callback=lambda indata, frames, time, status:self.q.put(bytes(indata))):
-            self.engine.say("Please speech")
-            self.engine.runAndWait()
             rec = vosk.KaldiRecognizer(self.model, 16000)
             while True:
                 if rec.AcceptWaveform(self.q.get()):
@@ -485,26 +578,23 @@ class App():
                     if result.strip()!='""':
                         self.order.choice(result)
                 if self.qw % 2 == 0:
-                    self.engine.say("Done listening")
-                    self.engine.runAndWait()
                     break
-                
     def stt_on(self):
-        self.qw+=1
-        self.engine.say("Please speech")
-        self.engine.runAndWait()
-        while True:
-            if self.qw%2==0: 
-                    break
-            recognizer = sr.Recognizer()
-            with sr.Microphone() as source:
-                audio = recognizer.listen(source,0,4)
+        r = sr.Recognizer()
+        try:
+            while True:
+                with sr.Microphone() as source:
+                    audio = r.listen(source)
                 try:
-                    text = recognizer.recognize_google(audio,language="en-us")
+                    text = r.recognize_google(audio)
                     print(text)
-                    self.order.choice(text)
-                except :
-                    pass
+                    self.order.choice(text);
+                except sr.UnknownValueError:
+                    print("Could not understand audio")
+                except sr.RequestError as e:
+                    print(f"Could not request results; {e}")
+        except KeyboardInterrupt:
+            print("Stopped listening")
     def Exchange(self):
         self.toggle_switch()
         if self.order.check_conection()==False:
@@ -530,13 +620,9 @@ class App():
         elif page_number == 3:
             label = ctk.CTkLabel(self.content_frame, text=" 😉coming soon!😊", font=("Arial", 60),compound="center",text_color="green")
             label.place(x=320,y=150)
-            self.engine.say("cooming soon!")
-            self.engine.runAndWait()
         elif page_number == 4:
             label_s = ctk.CTkLabel(self.content_frame, text=" 😊coming soon!😉", font=("Arial", 60),compound="center",text_color="blue")
             label_s.place(x=320,y=150)
-            self.engine.say("cooming soon!")
-            self.engine.runAndWait()
 
     def main(self):
         self.content_frame = ctk.CTkFrame(self.app, corner_radius=10, fg_color="#000f51")
@@ -547,10 +633,9 @@ class App():
         self.text_e.bind("<Return>", self.insert_text)
         self.app.mainloop()
 
-if __name__=="__main__":
-    app = App()
-    try:
-        app.main()
-    except:
-        pass
+app = App()
+try:
+    app.main()
+except:
+    pass
     
